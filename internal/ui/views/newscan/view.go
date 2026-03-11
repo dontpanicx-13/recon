@@ -1,0 +1,210 @@
+package newscan
+
+import (
+	"fmt"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
+)
+
+func (m NewScanModel) View(width, height int) string {
+	m.width = width
+	m.height = height
+
+	panel := lipgloss.NewStyle().
+		Padding(1, 2).
+		Width(width).
+		Height(height)
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color("#b06fd6")).
+		Padding(0, 1).
+		Render("NEW SCAN")
+
+	body := m.renderBody()
+	return panel.Render(lipgloss.JoinVertical(lipgloss.Left, title, "", body))
+}
+
+func (m NewScanModel) renderBody() string {
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB"))
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	focusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
+	toggleOn := lipgloss.NewStyle().Foreground(lipgloss.Color("#F5276C"))
+	toggleOff := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	errorStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color("#DC2626")).
+		Padding(0, 1)
+
+	contentWidth := m.width - 6
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+	m.applyInputWidths(contentWidth)
+
+	lines := []string{
+		labelStyle.Render("Targets"),
+		m.renderInput(m.targetsInput, fieldTargets),
+		"",
+		labelStyle.Render("Ports"),
+		m.renderSelect("Mode", m.portsModeLabel(), fieldPortsMode),
+	}
+
+	switch m.portsMode {
+	case portsPreset:
+		lines = append(lines, m.renderSelect("Preset", m.portsPresetLabel(), fieldPortsPreset))
+	case portsRange:
+		lines = append(lines, m.renderInputRow("Range", m.portsRange, fieldPortsRange))
+	case portsList:
+		lines = append(lines, m.renderInputRow("List", m.portsList, fieldPortsList))
+	}
+
+	lines = append(lines,
+		"",
+		labelStyle.Render("Profile"),
+		m.renderSelect("Profile", m.profileLabel(), fieldProfile),
+		m.renderInputRow("Concurrency", m.concurrency, fieldConcurrency),
+		m.renderInputRow("Timeout(ms)", m.timeoutMs, fieldTimeout),
+		"",
+		labelStyle.Render("Options"),
+		m.renderToggle("Banner grabbing", m.toggleBanner, fieldBanner, toggleOn, toggleOff, focusStyle),
+		m.renderToggle("TLS analysis", m.toggleTLS, fieldTLS, toggleOn, toggleOff, focusStyle),
+		m.renderToggle("Reverse DNS", m.toggleRDNS, fieldRDNS, toggleOn, toggleOff, focusStyle),
+		"",
+		labelStyle.Render("Label (optional)"),
+		m.renderInput(m.label, fieldLabel),
+		"",
+	)
+
+	errors := m.validate()
+	startLine := m.renderStart(errors, mutedStyle, focusStyle)
+	lines = append(lines, startLine)
+
+	if len(errors) > 0 {
+		for _, err := range errors {
+			lines = append(lines, errorStyle.Render("- "+err))
+		}
+	}
+
+	controls := mutedStyle.Render("Tab/Shift+Tab (move) • Left/Right (switch) • Space (toggle) • Enter (start)")
+	lines = append(lines, "", controls)
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m NewScanModel) renderInput(input textinput.Model, field fieldID) string {
+	if m.focusedField == field {
+		return focusTextInput(input)
+	}
+	return blurTextInput(input)
+}
+
+func (m NewScanModel) renderSelect(label, value string, field fieldID) string {
+	lineLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF")).Render(label + ":")
+	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#374151")).Padding(0, 1)
+	if m.focusedField == field {
+		valueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
+	}
+	return fmt.Sprintf("%s %s", lineLabel, valueStyle.Render(value))
+}
+
+func (m NewScanModel) renderInputRow(label string, input textinput.Model, field fieldID) string {
+	lineLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF")).Render(label + ":")
+	return fmt.Sprintf("%s %s", lineLabel, m.renderInput(input, field))
+}
+
+func (m NewScanModel) renderToggle(label string, enabled bool, field fieldID, onStyle, offStyle, focusStyle lipgloss.Style) string {
+	box := "[ ]"
+	style := offStyle
+	if enabled {
+		/*box = "■"*/
+		box = ""
+
+		style = onStyle
+	}
+	rendered := style.Render(box + " " + label)
+	if m.focusedField == field {
+		rendered = focusStyle.Render(box + " " + label)
+	}
+	return rendered
+}
+
+func (m NewScanModel) renderStart(errors []string, mutedStyle, focusStyle lipgloss.Style) string {
+	if m.disabled {
+		return mutedStyle.Render("Scan in progress...")
+	}
+	label := "[ START SCAN ]"
+	if len(errors) > 0 {
+		return mutedStyle.Render(label)
+	}
+	if m.focusedField == fieldStart {
+		return focusStyle.Render(label)
+	}
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#229073")).Padding(0, 1).Render(label)
+}
+
+func (m NewScanModel) portsModeLabel() string {
+	switch m.portsMode {
+	case portsRange:
+		return "Range"
+	case portsList:
+		return "List"
+	default:
+		return "Preset"
+	}
+}
+
+func (m NewScanModel) portsPresetLabel() string {
+	switch m.portsPreset {
+	case presetTop1000:
+		return "Top 1000"
+	case presetAll:
+		return "All"
+	default:
+		return "Top 100"
+	}
+}
+
+func (m NewScanModel) profileLabel() string {
+	switch m.profile {
+	case profileQuick:
+		return "Quick"
+	case profileFull:
+		return "Full"
+	case profileCustom:
+		return "Custom"
+	default:
+		return "Default"
+	}
+}
+
+func (m *NewScanModel) applyInputWidths(width int) {
+	m.targetsInput.Width = width
+	m.portsRange.Width = width
+	m.portsList.Width = width
+	m.concurrency.Width = max(10, width/2)
+	m.timeoutMs.Width = max(10, width/2)
+	m.label.Width = width
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func focusTextInput(input textinput.Model) string {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
+	value := input.View()
+	return style.Render(value)
+}
+
+func blurTextInput(input textinput.Model) string {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#374151")).Padding(0, 1)
+	value := input.View()
+	return style.Render(value)
+}

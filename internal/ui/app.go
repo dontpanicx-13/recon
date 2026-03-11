@@ -5,17 +5,19 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"recon/internal/ui/views/newscan"
 )
 
 type model struct {
 	width   int
 	height  int
-	newScan NewScanModel
+	newScan newscan.NewScanModel
 }
 
 func InitalModel() model {
 	return model{
-		newScan: NewNewScanModel(),
+		newScan: newscan.NewModel(),
 	}
 }
 
@@ -86,13 +88,13 @@ func (m model) View() string {
 	panel := lipgloss.NewStyle().Padding(1, 2)
 
 	running := panel.
-		Width(rightWidth-1).
+		Width(rightWidth - 1).
 		Height(topHeight).
 		Render("Running / Logs\n\nNo active scan.")
 
 	history := panel.
 		Width(usableWidth).
-		Height(bottomHeight-1).
+		Height(bottomHeight - 1).
 		Render("Scan History\n\n(no scans yet)")
 
 	vertLine := strings.Repeat("│\n", topHeight-1) + "│"
