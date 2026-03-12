@@ -18,12 +18,12 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab":
-			m.focusedField = m.nextField(true)
+		case "up":
+			m.focusedField = m.nextField(false)
 			m.applyFocus()
 			return m, nil
-		case "shift+tab":
-			m.focusedField = m.nextField(false)
+		case "down":
+			m.focusedField = m.nextField(true)
 			m.applyFocus()
 			return m, nil
 		case "left":
@@ -37,13 +37,12 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 				return m, nil
 			}
 		case "enter":
-			if m.focusedField == fieldStart {
-				m.lastErrors = m.validate()
-				return m, nil
-			}
-		case " ":
 			if m.isToggleField(m.focusedField) {
 				m.handleToggle()
+				return m, nil
+			}
+			if m.focusedField == fieldStart {
+				m.lastErrors = m.validate()
 				return m, nil
 			}
 		}

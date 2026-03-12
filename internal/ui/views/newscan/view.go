@@ -2,6 +2,7 @@ package newscan
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
@@ -9,7 +10,7 @@ import (
 	"recon/internal/ui/theme"
 )
 
-func (m NewScanModel) View(width, height int) string {
+func (m NewScanModel) View(width, height int, active bool) string {
 	m.width = width
 	m.height = height
 
@@ -22,18 +23,31 @@ func (m NewScanModel) View(width, height int) string {
 	if titleWidth < 10 {
 		titleWidth = 10
 	}
+	titleFg := m.theme.StatusFg
+	titleBg := m.theme.StatusBg
+	underline := strings.Repeat(" ", titleWidth)
+	if active {
+		titleFg = m.theme.AccentFg
+		titleBg = m.theme.AccentBg
+		underline = strings.Repeat("─", titleWidth)
+	}
 	title := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(m.theme.AccentFg)).
-		Background(lipgloss.Color(m.theme.AccentBg)).
+		Foreground(lipgloss.Color(titleFg)).
+		Background(lipgloss.Color(titleBg)).
 		Padding(0, 1).
 		Width(titleWidth).
 		Height(1).
 		Align(lipgloss.Center).
 		Render("NEW SCAN")
+	underlineLine := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.theme.AccentBg)).
+		Background(lipgloss.Color(m.theme.AppBg)).
+		Width(titleWidth).
+		Render(underline)
 
 	body := m.renderBody()
-	return panel.Render(lipgloss.JoinVertical(lipgloss.Left, title, "", body))
+	return panel.Render(lipgloss.JoinVertical(lipgloss.Left, title, underlineLine, "", body))
 }
 
 func (m NewScanModel) renderBody() string {
@@ -106,8 +120,7 @@ func (m NewScanModel) renderBody() string {
 		}
 	}
 
-	controls := mutedStyle.Render("Tab/Shift+Tab (move) • Left/Right (switch) • Space (toggle) • Enter (start)")
-	lines = append(lines, "", controls)
+	lines = append(lines, "")
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }

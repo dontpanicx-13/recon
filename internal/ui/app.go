@@ -16,12 +16,22 @@ type model struct {
 	height  int
 	newScan newscan.NewScanModel
 	status  statusbar.Model
+	active  viewID
 }
+
+type viewID int
+
+const (
+	viewNewScan viewID = iota
+	viewLogs
+	viewHistory
+)
 
 func InitalModel(toolName, toolVersion string) model {
 	return model{
 		newScan: newscan.NewModel(),
 		status:  statusbar.NewModel(toolName, toolVersion),
+		active:  viewNewScan,
 	}
 }
 
@@ -41,6 +51,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Cool, what was the actual key pressed?
 		switch msg.String() {
+		case "alt+up":
+			m.active = viewNewScan
+			return m, nil
+		case "alt+right":
+			m.active = viewLogs
+			return m, nil
+		case "alt+down":
+			m.active = viewHistory
+			return m, nil
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
@@ -51,7 +70,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var statusCmd tea.Cmd
 	m.status, statusCmd = m.status.Update(msg)
-	m.newScan, cmd = m.newScan.Update(msg)
+	if _, ok := msg.(tea.KeyMsg); !ok || m.active == viewNewScan {
+		m.newScan, cmd = m.newScan.Update(msg)
+	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
 	// Note that we're not returning a command.
@@ -91,14 +112,16 @@ func (m model) View() string {
 		rightWidth = m.width - leftWidth
 	}
 
-	newScan := m.newScan.View(leftWidth-1, topHeight)
+	newScan := m.newScan.View(leftWidth-1, topHeight, m.active == viewNewScan)
 
 	panel := lipgloss.NewStyle().Padding(1, 2)
 
+	runningTitle := m.renderPanelTitle("RUNNING / LOGS", rightWidth-1, uiTheme, m.active == viewLogs)
+	runningBody := "No active scan."
 	running := panel.
 		Width(rightWidth - 1).
 		Height(topHeight).
-		Render("Running / Logs\n\nNo active scan.")
+		Render(lipgloss.JoinVertical(lipgloss.Left, runningTitle, "", runningBody))
 
 	statusHeight := 1
 	historyHeight := bottomHeight - statusHeight
@@ -106,10 +129,12 @@ func (m model) View() string {
 		historyHeight = 3
 	}
 
+	historyTitle := m.renderPanelTitle("SCAN HISTORY", usableWidth, uiTheme, m.active == viewHistory)
+	historyBody := "(no scans yet)"
 	history := panel.
 		Width(usableWidth).
 		Height(historyHeight - 1).
-		Render("Scan History\n\n(no scans yet)")
+		Render(lipgloss.JoinVertical(lipgloss.Left, historyTitle, "", historyBody))
 
 	vertLine := strings.Repeat("│\n", topHeight-1) + "│"
 	vert := lipgloss.NewStyle().
@@ -135,6 +160,36 @@ func (m model) View() string {
 		Width(m.width).
 		Height(m.height)
 	return base.Render(content)
+}
+
+func (m model) renderPanelTitle(text string, width int, uiTheme theme.Theme, active bool) string {
+	titleWidth := width - 4
+	if titleWidth < 10 {
+		titleWidth = 10
+	}
+	titleFg := uiTheme.StatusFg
+	titleBg := uiTheme.StatusBg
+	underline := strings.Repeat(" ", titleWidth)
+	if active {
+		titleFg = uiTheme.AccentFg
+		titleBg = uiTheme.AccentBg
+		underline = strings.Repeat("─", titleWidth)
+	}
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(titleFg)).
+		Background(lipgloss.Color(titleBg)).
+		Padding(0, 1).
+		Width(titleWidth).
+		Height(1).
+		Align(lipgloss.Center).
+		Render(text)
+	underlineLine := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(uiTheme.AccentBg)).
+		Background(lipgloss.Color(uiTheme.AppBg)).
+		Width(titleWidth).
+		Render(underline)
+	return lipgloss.JoinVertical(lipgloss.Left, title, underlineLine)
 }
 
 func makeFiller(width int, bg string, lines int) string {

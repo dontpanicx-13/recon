@@ -12,16 +12,18 @@ type Theme struct {
 	StatusBg      string `json:"status_bg"`
 	StatusFg      string `json:"status_fg"`
 	SpinnerFg     string `json:"spinner_fg"`
+	ControlsFg    string `json:"controls_fg"`
 }
 
 func Default() Theme {
 	return Theme{
 		AppBg:         "#1e2030",
-		AccentBg:      "#99e174",
+		AccentBg:      "#DFC2FC",
 		AccentFg:      "#1e2030",
 		StatusBg:      "#2b2f45",
 		StatusFg:      "#e6e6e6",
 		SpinnerFg:     "#99e174",
+		ControlsFg:    "#82aaff",
 	}
 }
 
@@ -58,6 +60,9 @@ func (t Theme) merge(o Theme) Theme {
 	}
 	if o.SpinnerFg != "" {
 		t.SpinnerFg = o.SpinnerFg
+	}
+	if o.ControlsFg != "" {
+		t.ControlsFg = o.ControlsFg
 	}
 
 	return t
