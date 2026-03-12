@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+
+	"recon/internal/ui/theme"
 )
 
 type portsMode int
@@ -58,6 +60,7 @@ type NewScanModel struct {
 	concurrency  textinput.Model
 	timeoutMs    textinput.Model
 	label        textinput.Model
+	theme        theme.Theme
 
 	portsMode   portsMode
 	portsPreset portsPresetKind
@@ -70,6 +73,7 @@ type NewScanModel struct {
 	focusedField fieldID
 	disabled     bool
 	lastErrors   []string
+	blinkOn      bool
 	width        int
 	height       int
 }
@@ -80,14 +84,15 @@ func NewModel() NewScanModel {
 		portsPreset:  presetTop100,
 		profile:      profileDefault,
 		focusedField: fieldTargets,
+		theme:        theme.Load(),
 	}
 
-	m.targetsInput = newTextInput("Targets", "")
-	m.portsRange = newTextInput("Range", "1-1024")
-	m.portsList = newTextInput("List", "22,80,443")
-	m.concurrency = newTextInput("Concurrency", "100")
-	m.timeoutMs = newTextInput("Timeout", "1000")
-	m.label = newTextInput("Label", "")
+	m.targetsInput = newTextInput(m.theme, "Targets", "")
+	m.portsRange = newTextInput(m.theme, "Range", "1-1024")
+	m.portsList = newTextInput(m.theme, "List", "22,80,443")
+	m.concurrency = newTextInput(m.theme, "Concurrency", "100")
+	m.timeoutMs = newTextInput(m.theme, "Timeout", "1000")
+	m.label = newTextInput(m.theme, "Label", "")
 
 	m.applyFocus()
 	return m
@@ -161,14 +166,16 @@ func validList(value string) bool {
 	return true
 }
 
-func newTextInput(placeholder, value string) textinput.Model {
+func newTextInput(theme theme.Theme, placeholder, value string) textinput.Model {
 	input := textinput.New()
 	input.Prompt = ""
 	input.Placeholder = placeholder
 	input.SetValue(value)
-	input.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB"))
+	input.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentFg))
 	input.PlaceholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B"))
+	input.Cursor.Style = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.AccentFg)).
+		Background(lipgloss.Color(theme.AccentBg))
 	input.CharLimit = 0
 	return input
 }

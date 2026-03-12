@@ -5,6 +5,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+
+	"recon/internal/ui/theme"
 )
 
 func (m NewScanModel) View(width, height int) string {
@@ -16,11 +18,18 @@ func (m NewScanModel) View(width, height int) string {
 		Width(width).
 		Height(height)
 
+	titleWidth := width - 4
+	if titleWidth < 10 {
+		titleWidth = 10
+	}
 	title := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#b06fd6")).
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Background(lipgloss.Color(m.theme.AccentBg)).
 		Padding(0, 1).
+		Width(titleWidth).
+		Height(1).
+		Align(lipgloss.Center).
 		Render("NEW SCAN")
 
 	body := m.renderBody()
@@ -30,13 +39,21 @@ func (m NewScanModel) View(width, height int) string {
 func (m NewScanModel) renderBody() string {
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB"))
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	focusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
-	toggleOn := lipgloss.NewStyle().Foreground(lipgloss.Color("#F5276C"))
+	focusStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Background(lipgloss.Color(m.theme.AccentBg)).
+		Padding(0, 1)
+	toggleFocusStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Background(lipgloss.Color(m.theme.AccentBg)).
+		Padding(0, 1)
+	toggleOn := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.AccentBg))
 	toggleOff := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	errorStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#DC2626")).
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Background(lipgloss.Color(m.theme.AccentBg)).
 		Padding(0, 1)
 
 	contentWidth := m.width - 6
@@ -70,9 +87,9 @@ func (m NewScanModel) renderBody() string {
 		m.renderInputRow("Timeout(ms)", m.timeoutMs, fieldTimeout),
 		"",
 		labelStyle.Render("Options"),
-		m.renderToggle("Banner grabbing", m.toggleBanner, fieldBanner, toggleOn, toggleOff, focusStyle),
-		m.renderToggle("TLS analysis", m.toggleTLS, fieldTLS, toggleOn, toggleOff, focusStyle),
-		m.renderToggle("Reverse DNS", m.toggleRDNS, fieldRDNS, toggleOn, toggleOff, focusStyle),
+		m.renderToggle("Banner grabbing", m.toggleBanner, fieldBanner, toggleOn, toggleOff, toggleFocusStyle),
+		m.renderToggle("TLS analysis", m.toggleTLS, fieldTLS, toggleOn, toggleOff, toggleFocusStyle),
+		m.renderToggle("Reverse DNS", m.toggleRDNS, fieldRDNS, toggleOn, toggleOff, toggleFocusStyle),
 		"",
 		labelStyle.Render("Label (optional)"),
 		m.renderInput(m.label, fieldLabel),
@@ -97,7 +114,7 @@ func (m NewScanModel) renderBody() string {
 
 func (m NewScanModel) renderInput(input textinput.Model, field fieldID) string {
 	if m.focusedField == field {
-		return focusTextInput(input)
+		return focusTextInput(input, m.theme)
 	}
 	return blurTextInput(input)
 }
@@ -106,7 +123,10 @@ func (m NewScanModel) renderSelect(label, value string, field fieldID) string {
 	lineLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF")).Render(label + ":")
 	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#374151")).Padding(0, 1)
 	if m.focusedField == field {
-		valueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
+		valueStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.theme.AccentFg)).
+			Background(lipgloss.Color(m.theme.AccentBg)).
+			Padding(0, 1)
 	}
 	return fmt.Sprintf("%s %s", lineLabel, valueStyle.Render(value))
 }
@@ -117,12 +137,10 @@ func (m NewScanModel) renderInputRow(label string, input textinput.Model, field 
 }
 
 func (m NewScanModel) renderToggle(label string, enabled bool, field fieldID, onStyle, offStyle, focusStyle lipgloss.Style) string {
-	box := "[ ]"
+	box := "▯"
 	style := offStyle
 	if enabled {
-		/*box = "■"*/
-		box = ""
-
+		box = "▮"
 		style = onStyle
 	}
 	rendered := style.Render(box + " " + label)
@@ -141,9 +159,17 @@ func (m NewScanModel) renderStart(errors []string, mutedStyle, focusStyle lipglo
 		return mutedStyle.Render(label)
 	}
 	if m.focusedField == fieldStart {
-		return focusStyle.Render(label)
+		marker := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.theme.AccentBg)).
+			Render(markerGlyph(m.blinkOn))
+		return lipgloss.JoinHorizontal(lipgloss.Left, marker, " ", focusStyle.Render(label))
 	}
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#229073")).Padding(0, 1).Render(label)
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Background(lipgloss.Color(m.theme.AccentBg)).
+		Padding(0, 1).
+		Render(label)
 }
 
 func (m NewScanModel) portsModeLabel() string {
@@ -197,14 +223,25 @@ func max(a, b int) int {
 	return b
 }
 
-func focusTextInput(input textinput.Model) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#111827")).Background(lipgloss.Color("#F59E0B")).Padding(0, 1)
+func focusTextInput(input textinput.Model, theme theme.Theme) string {
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.AccentFg)).
+		Background(lipgloss.Color(theme.AccentBg)).
+		Padding(0, 1)
 	value := input.View()
 	return style.Render(value)
 }
 
 func blurTextInput(input textinput.Model) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#374151")).Padding(0, 1)
+	input.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	style := lipgloss.NewStyle().Background(lipgloss.Color("#374151")).Padding(0, 1)
 	value := input.View()
 	return style.Render(value)
+}
+
+func markerGlyph(on bool) string {
+	if on {
+		return "█"
+	}
+	return " "
 }

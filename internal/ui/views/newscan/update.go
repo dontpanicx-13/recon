@@ -10,6 +10,9 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case blinkMsg:
+		m.blinkOn = !m.blinkOn
+		return m, BlinkCmd()
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
