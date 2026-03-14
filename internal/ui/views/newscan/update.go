@@ -1,6 +1,10 @@
 package newscan
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -16,6 +20,32 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	}
+
+	if m.pickingFile {
+		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "esc" {
+			m.pickingFile = false
+			m.applyFocus()
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.filePicker, cmd = m.filePicker.Update(msg)
+		if didSelect, path := m.filePicker.DidSelectFile(msg); didSelect {
+			m.pickerSelected = path
+			m.pickerErr = nil
+			m.applyPickedFile(path)
+			m.pickingFile = false
+			m.applyFocus()
+			return m, nil
+		}
+		if didSelect, path := m.filePicker.DidSelectDisabledFile(msg); didSelect {
+			m.setPickerError(path)
+			return m, cmd
+		}
+		return m, cmd
+	}
+
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up":
@@ -41,6 +71,14 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 				m.handleToggle()
 				return m, nil
 			}
+			if m.focusedField == fieldFilePicker {
+				m.pickingFile = true
+				m.pickerErr = nil
+				m.filePicker.CurrentDirectory = m.filePickerStartDir()
+				m.filePicker.AutoHeight = false
+				m.filePicker.Height = m.pickerHeight()
+				return m, m.filePicker.Init()
+			}
 			if m.focusedField == fieldStart {
 				m.lastErrors = m.validate()
 				return m, nil
@@ -56,6 +94,7 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 func (m NewScanModel) nextField(forward bool) fieldID {
 	order := []fieldID{
 		fieldTargets,
+		fieldFilePicker,
 		fieldPortsMode,
 		fieldPortsPreset,
 		fieldPortsRange,
@@ -212,4 +251,41 @@ func (m *NewScanModel) applyFocus() {
 	case fieldLabel:
 		m.label.Focus()
 	}
+}
+
+func (m *NewScanModel) applyPickedFile(path string) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	current := strings.TrimSpace(m.targetsInput.Value())
+	if current == "" {
+		m.targetsInput.SetValue(path)
+		return
+	}
+	if strings.HasSuffix(current, ",") {
+		m.targetsInput.SetValue(current + " " + path)
+		return
+	}
+	m.targetsInput.SetValue(current + ", " + path)
+}
+
+func (m NewScanModel) filePickerStartDir() string {
+	cwd, err := os.Getwd()
+	if err == nil && cwd != "" {
+		return filepath.Clean(cwd)
+	}
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Clean(home)
+	}
+	return "."
+}
+
+func (m NewScanModel) pickerHeight() int {
+	h := m.height
+	if h == 0 {
+		h = 20
+	}
+	return max(8, min(18, h-6))
 }

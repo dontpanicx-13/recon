@@ -76,9 +76,15 @@ func (m NewScanModel) renderBody() string {
 	}
 	m.applyInputWidths(contentWidth)
 
+	if m.pickingFile {
+		return m.renderFilePickerOverlay()
+	}
+
 	lines := []string{
 		labelStyle.Render("Targets"),
 		m.renderInput(m.targetsInput, fieldTargets),
+		"",
+		m.renderSelectValue("File", fieldFilePicker),
 		"",
 		labelStyle.Render("Ports"),
 		m.renderSelect("Mode", m.portsModeLabel(), fieldPortsMode),
@@ -125,6 +131,42 @@ func (m NewScanModel) renderBody() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m NewScanModel) renderFilePickerOverlay() string {
+	modalWidth := min(70, max(30, m.width-8))
+	modalHeight := min(18, max(10, m.height-8))
+	m.filePicker.Height = max(8, modalHeight-4)
+
+	var status strings.Builder
+	status.WriteString("Pick a file:")
+	if m.pickerErr != nil {
+		status.Reset()
+		status.WriteString(m.filePicker.Styles.DisabledFile.Render(m.pickerErr.Error()))
+	} else if m.pickerSelected != "" {
+		status.Reset()
+		status.WriteString("Selected file: " + m.filePicker.Styles.Selected.Render(m.pickerSelected))
+	}
+
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(m.theme.AccentFg)).
+		Render(status.String())
+	help := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Render("↑/↓ move  ← back  → open  Enter select  Esc close")
+	body := lipgloss.JoinVertical(lipgloss.Left, header, help, "", m.filePicker.View())
+
+	box := lipgloss.NewStyle().
+		Width(modalWidth).
+		Height(modalHeight).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(m.theme.AccentBg)).
+		Background(lipgloss.Color(m.theme.AppBg)).
+		Render(body)
+
+	return lipgloss.Place(m.width-4, m.height-4, lipgloss.Center, lipgloss.Center, box)
+}
+
 func (m NewScanModel) renderInput(input textinput.Model, field fieldID) string {
 	if m.focusedField == field {
 		return focusTextInput(input, m.theme)
@@ -142,6 +184,17 @@ func (m NewScanModel) renderSelect(label, value string, field fieldID) string {
 			Padding(0, 1)
 	}
 	return fmt.Sprintf("%s %s", lineLabel, valueStyle.Render(value))
+}
+
+func (m NewScanModel) renderSelectValue(value string, field fieldID) string {
+	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB")).Background(lipgloss.Color("#374151")).Padding(0, 1)
+	if m.focusedField == field {
+		valueStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(m.theme.AccentFg)).
+			Background(lipgloss.Color(m.theme.AccentBg)).
+			Padding(0, 1)
+	}
+	return valueStyle.Render(value)
 }
 
 func (m NewScanModel) renderInputRow(label string, input textinput.Model, field fieldID) string {
@@ -231,6 +284,13 @@ func (m *NewScanModel) applyInputWidths(width int) {
 
 func max(a, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b int) int {
+	if a < b {
 		return a
 	}
 	return b

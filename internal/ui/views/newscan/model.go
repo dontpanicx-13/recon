@@ -1,9 +1,11 @@
 package newscan
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 
@@ -39,6 +41,7 @@ const (
 
 const (
 	fieldTargets fieldID = iota
+	fieldFilePicker
 	fieldPortsMode
 	fieldPortsPreset
 	fieldPortsRange
@@ -60,6 +63,7 @@ type NewScanModel struct {
 	concurrency  textinput.Model
 	timeoutMs    textinput.Model
 	label        textinput.Model
+	filePicker   filepicker.Model
 	theme        theme.Theme
 
 	portsMode   portsMode
@@ -70,12 +74,15 @@ type NewScanModel struct {
 	toggleTLS    bool
 	toggleRDNS   bool
 
-	focusedField fieldID
-	disabled     bool
-	lastErrors   []string
-	blinkOn      bool
-	width        int
-	height       int
+	pickingFile    bool
+	pickerSelected string
+	pickerErr      error
+	focusedField   fieldID
+	disabled       bool
+	lastErrors     []string
+	blinkOn        bool
+	width          int
+	height         int
 }
 
 func NewModel() NewScanModel {
@@ -87,15 +94,26 @@ func NewModel() NewScanModel {
 		theme:        theme.Load(),
 	}
 
-	m.targetsInput = newTextInput(m.theme, "Targets", "")
+	m.targetsInput = newTextInput(m.theme, "IP, domain, CIDR, list, or file path", "")
 	m.portsRange = newTextInput(m.theme, "Range", "1-1024")
 	m.portsList = newTextInput(m.theme, "List", "22,80,443")
 	m.concurrency = newTextInput(m.theme, "Concurrency", "100")
 	m.timeoutMs = newTextInput(m.theme, "Timeout", "1000")
 	m.label = newTextInput(m.theme, "Label", "")
+	m.filePicker = filepicker.New()
+	m.filePicker.ShowHidden = true
+	m.filePicker.DirAllowed = true
+	m.filePicker.FileAllowed = true
+	m.filePicker.AutoHeight = false
+	m.filePicker.Height = 12
 
 	m.applyFocus()
 	return m
+}
+
+func (m *NewScanModel) setPickerError(path string) {
+	m.pickerErr = errors.New(path + " is not valid.")
+	m.pickerSelected = ""
 }
 
 func (m NewScanModel) validate() []string {
