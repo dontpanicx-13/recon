@@ -34,6 +34,7 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 			m.pickerSelected = path
 			m.pickerErr = nil
 			m.applyPickedFile(path)
+			m.resetValidation()
 			m.pickingFile = false
 			m.applyFocus()
 			return m, nil
@@ -59,16 +60,19 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 		case "left":
 			if m.isSelectField(m.focusedField) {
 				m.handleSelect(-1)
+				m.resetValidation()
 				return m, nil
 			}
 		case "right":
 			if m.isSelectField(m.focusedField) {
 				m.handleSelect(1)
+				m.resetValidation()
 				return m, nil
 			}
 		case "enter":
 			if m.isToggleField(m.focusedField) {
 				m.handleToggle()
+				m.resetValidation()
 				return m, nil
 			}
 			if m.focusedField == fieldFilePicker {
@@ -80,7 +84,9 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 				return m, m.filePicker.Init()
 			}
 			if m.focusedField == fieldStart {
-				m.lastErrors = m.validate()
+				errs, warns := m.validate()
+				m.lastErrors = errs
+				m.lastWarnings = warns
 				return m, nil
 			}
 		}
@@ -206,25 +212,43 @@ func (m NewScanModel) updateFocusedInput(msg tea.Msg) (NewScanModel, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.focusedField {
 	case fieldTargets:
+		prev := m.targetsInput.Value()
 		m.targetsInput, cmd = m.targetsInput.Update(msg)
+		if m.targetsInput.Value() != prev {
+			m.resetValidation()
+		}
 	case fieldPortsRange:
+		prev := m.portsRange.Value()
 		m.portsRange, cmd = m.portsRange.Update(msg)
+		if m.portsRange.Value() != prev {
+			m.resetValidation()
+		}
 	case fieldPortsList:
+		prev := m.portsList.Value()
 		m.portsList, cmd = m.portsList.Update(msg)
+		if m.portsList.Value() != prev {
+			m.resetValidation()
+		}
 	case fieldConcurrency:
 		prev := m.concurrency.Value()
 		m.concurrency, cmd = m.concurrency.Update(msg)
 		if m.concurrency.Value() != prev {
 			m.profile = profileCustom
+			m.resetValidation()
 		}
 	case fieldTimeout:
 		prev := m.timeoutMs.Value()
 		m.timeoutMs, cmd = m.timeoutMs.Update(msg)
 		if m.timeoutMs.Value() != prev {
 			m.profile = profileCustom
+			m.resetValidation()
 		}
 	case fieldLabel:
+		prev := m.label.Value()
 		m.label, cmd = m.label.Update(msg)
+		if m.label.Value() != prev {
+			m.resetValidation()
+		}
 	}
 	return m, cmd
 }
@@ -261,13 +285,16 @@ func (m *NewScanModel) applyPickedFile(path string) {
 	current := strings.TrimSpace(m.targetsInput.Value())
 	if current == "" {
 		m.targetsInput.SetValue(path)
+		m.resetValidation()
 		return
 	}
 	if strings.HasSuffix(current, ",") {
 		m.targetsInput.SetValue(current + " " + path)
+		m.resetValidation()
 		return
 	}
 	m.targetsInput.SetValue(current + ", " + path)
+	m.resetValidation()
 }
 
 func (m NewScanModel) filePickerStartDir() string {

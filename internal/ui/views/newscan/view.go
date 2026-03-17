@@ -69,6 +69,12 @@ func (m NewScanModel) renderBody() string {
 		Foreground(lipgloss.Color(m.theme.AccentFg)).
 		Background(lipgloss.Color(m.theme.AccentBg)).
 		Padding(0, 1)
+	warnStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FCD34D"))
+	warnLabelStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FCD34D")).
+		Padding(0, 1)
 
 	contentWidth := m.width - 6
 	if contentWidth < 10 {
@@ -116,13 +122,21 @@ func (m NewScanModel) renderBody() string {
 		"",
 	)
 
-	errors := m.validate()
+	errors := m.lastErrors
+	warnings := m.lastWarnings
 	startLine := m.renderStart(errors, mutedStyle, focusStyle)
 	lines = append(lines, startLine)
 
 	if len(errors) > 0 {
 		for _, err := range errors {
 			lines = append(lines, errorStyle.Render("- "+err))
+		}
+	}
+
+	if len(warnings) > 0 {
+		lines = append(lines, warnLabelStyle.Render("Warnings"))
+		for _, warn := range warnings {
+			lines = append(lines, warnStyle.Render("- "+warn))
 		}
 	}
 

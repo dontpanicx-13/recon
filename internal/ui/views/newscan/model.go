@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 
+	"recon/internal/target"
 	"recon/internal/ui/theme"
 )
 
@@ -80,6 +81,7 @@ type NewScanModel struct {
 	focusedField   fieldID
 	disabled       bool
 	lastErrors     []string
+	lastWarnings   []string
 	blinkOn        bool
 	width          int
 	height         int
@@ -116,11 +118,13 @@ func (m *NewScanModel) setPickerError(path string) {
 	m.pickerSelected = ""
 }
 
-func (m NewScanModel) validate() []string {
+func (m NewScanModel) validate() ([]string, []string) {
 	var errs []string
+	var warns []string
 
 	if strings.TrimSpace(m.targetsInput.Value()) == "" {
 		errs = append(errs, "Targets is required.")
+		return errs, warns
 	}
 
 	switch m.portsMode {
@@ -142,7 +146,23 @@ func (m NewScanModel) validate() []string {
 		errs = append(errs, "Timeout must be a positive number.")
 	}
 
-	return errs
+	if len(errs) > 0 {
+		return errs, warns
+	}
+
+	parseResult, parseErrs := target.Parse(m.targetsInput.Value(), target.Options{
+		ExcludeNetworkBroadcast: true,
+	})
+	if len(parseErrs) > 0 {
+		errs = append(errs, parseErrs...)
+	}
+	warns = append(warns, parseResult.Warnings...)
+
+	if len(parseResult.Targets) == 0 {
+		errs = append(errs, "No valid targets found.")
+	}
+
+	return errs, warns
 }
 
 func validPositiveInt(value string) bool {
@@ -196,4 +216,9 @@ func newTextInput(theme theme.Theme, placeholder, value string) textinput.Model 
 		Background(lipgloss.Color(theme.AccentBg))
 	input.CharLimit = 0
 	return input
+}
+
+func (m *NewScanModel) resetValidation() {
+	m.lastErrors = nil
+	m.lastWarnings = nil
 }
