@@ -82,7 +82,7 @@ func (m NewScanModel) renderBody() string {
 	}
 	m.applyInputWidths(contentWidth)
 
-	if m.pickingFile {
+	if m.mode == modePickingFile {
 		return m.renderFilePickerOverlay()
 	}
 
@@ -231,7 +231,7 @@ func (m NewScanModel) renderToggle(label string, enabled bool, field fieldID, on
 }
 
 func (m NewScanModel) renderStart(errors []string, mutedStyle, focusStyle lipgloss.Style) string {
-	if m.disabled {
+	if m.mode == modeDisabled {
 		return mutedStyle.Render("Scan in progress...")
 	}
 	label := "[ START SCAN ]"

@@ -21,6 +21,8 @@ type profileKind int
 
 type fieldID int
 
+type uiMode int
+
 const (
 	portsPreset portsMode = iota
 	portsRange
@@ -57,6 +59,12 @@ const (
 	fieldStart
 )
 
+const (
+	modeForm uiMode = iota
+	modePickingFile
+	modeDisabled
+)
+
 type NewScanModel struct {
 	targetsInput textinput.Model
 	portsRange   textinput.Model
@@ -75,11 +83,10 @@ type NewScanModel struct {
 	toggleTLS    bool
 	toggleRDNS   bool
 
-	pickingFile    bool
+	mode           uiMode
 	pickerSelected string
 	pickerErr      error
 	focusedField   fieldID
-	disabled       bool
 	lastErrors     []string
 	lastWarnings   []string
 	blinkOn        bool
@@ -93,6 +100,7 @@ func NewModel() NewScanModel {
 		portsPreset:  presetTop100,
 		profile:      profileDefault,
 		focusedField: fieldTargets,
+		mode:         modeForm,
 		theme:        theme.Load(),
 	}
 

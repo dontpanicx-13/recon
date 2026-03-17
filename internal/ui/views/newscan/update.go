@@ -9,7 +9,7 @@ import (
 )
 
 func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
-	if m.disabled {
+	if m.mode == modeDisabled {
 		return m, nil
 	}
 
@@ -22,9 +22,9 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 		m.height = msg.Height
 	}
 
-	if m.pickingFile {
+	if m.mode == modePickingFile {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "esc" {
-			m.pickingFile = false
+			m.mode = modeForm
 			m.applyFocus()
 			return m, nil
 		}
@@ -35,7 +35,7 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 			m.pickerErr = nil
 			m.applyPickedFile(path)
 			m.resetValidation()
-			m.pickingFile = false
+			m.mode = modeForm
 			m.applyFocus()
 			return m, nil
 		}
@@ -76,7 +76,7 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 				return m, nil
 			}
 			if m.focusedField == fieldFilePicker {
-				m.pickingFile = true
+				m.mode = modePickingFile
 				m.pickerErr = nil
 				m.filePicker.CurrentDirectory = m.filePickerStartDir()
 				m.filePicker.AutoHeight = false
