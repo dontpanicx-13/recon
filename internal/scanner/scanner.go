@@ -9,6 +9,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"recon/internal/banner"
 )
 
 const (
@@ -64,6 +66,7 @@ func NewScanner() *Scanner {
 	return &Scanner{
 		Now:           time.Now,
 		ReverseLookup: defaultReverseLookup,
+		BannerGrabber: banner.Grab,
 	}
 }
 
