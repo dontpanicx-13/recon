@@ -84,10 +84,13 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 				return m, m.filePicker.Init()
 			}
 			if m.focusedField == fieldStart {
-				errs, warns := m.validate()
+				cmd, errs, warns := m.StartScanCmd()
 				m.lastErrors = errs
 				m.lastWarnings = warns
-				return m, nil
+				if len(errs) > 0 {
+					return m, nil
+				}
+				return m, cmd
 			}
 		}
 	}

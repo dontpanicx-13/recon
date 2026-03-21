@@ -94,6 +94,17 @@ type NewScanModel struct {
 	height         int
 }
 
+func (m *NewScanModel) SetDisabled(disabled bool) {
+	if disabled {
+		m.mode = modeDisabled
+		return
+	}
+	if m.mode == modeDisabled {
+		m.mode = modeForm
+		m.applyFocus()
+	}
+}
+
 func NewModel() NewScanModel {
 	m := NewScanModel{
 		portsMode:    portsPreset,
