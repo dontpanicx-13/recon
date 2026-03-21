@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"recon/internal/scanner"
+	"recon/internal/tlsinfo"
 	"recon/internal/ui/theme"
 	"recon/internal/ui/views/newscan"
 	"recon/internal/ui/views/statusbar"
@@ -275,6 +276,7 @@ type scanDoneMsg struct {
 func runScanCmd(ctx context.Context, cfg scanner.ScanConfig, runner *scanRunner) tea.Cmd {
 	return func() tea.Msg {
 		s := scanner.NewScanner()
+		s.TLSInspector = tlsinfo.Inspect
 		result, err := s.Scan(ctx, cfg, func(evt scanner.Event) {
 			select {
 			case runner.events <- evt:
