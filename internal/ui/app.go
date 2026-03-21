@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"recon/internal/logger"
 	"recon/internal/scanner"
 	"recon/internal/tlsinfo"
 	"recon/internal/ui/theme"
@@ -24,6 +25,7 @@ type model struct {
 	active  viewID
 
 	scanRunner *scanRunner
+	log        *logger.Logger
 }
 
 type viewID int
@@ -35,11 +37,13 @@ const (
 )
 
 func InitalModel(toolName, toolVersion string) model {
+	log, _ := logger.NewDefault()
 	return model{
 		newScan: newscan.NewModel(),
 		running: running.NewModel(),
 		status:  statusbar.NewModel(toolName, toolVersion),
 		active:  viewNewScan,
+		log:     log,
 	}
 }
 
@@ -60,6 +64,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.running.StartScan(cancel, msg.PreLogs)
 		m.active = viewLogs
 		m.newScan.SetDisabled(true)
+		m.logScanStart(msg.Config)
+		for _, line := range msg.PreLogs {
+			m.logLine("dns", line)
+		}
 
 		return m, tea.Batch(runScanCmd(ctx, msg.Config, runner), listenScanCmd(runner))
 	case tea.WindowSizeMsg:
@@ -67,11 +75,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case scanEventMsg:
 		m.running.HandleScanEvent(msg.Event)
+		m.logScanEvent(msg.Event)
 		if m.scanRunner != nil {
 			return m, listenScanCmd(m.scanRunner)
 		}
 	case scanDoneMsg:
 		m.running.HandleScanDone(msg.Result, msg.Err)
+		m.logScanDone(msg.Result, msg.Err)
 		m.newScan.SetDisabled(false)
 
 	// Is it a key press?
@@ -195,6 +205,93 @@ func (m model) View() string {
 		Width(m.width).
 		Height(m.height)
 	return base.Render(content)
+}
+
+func (m *model) logScanStart(cfg scanner.ScanConfig) {
+	if m.log == nil {
+		return
+	}
+	m.log.Info("scan_start", map[string]any{
+		"targets":       cfg.Targets,
+		"ports":         cfg.Ports,
+		"profile":       cfg.Profile,
+		"concurrency":   cfg.Concurrency,
+		"timeout_ms":    cfg.TimeoutMS,
+		"banner_grab":   cfg.BannerGrabbing,
+		"tls_analysis":  cfg.TLSAnalysis,
+		"reverse_dns":   cfg.ReverseDNS,
+		"targets_count": len(cfg.Targets),
+		"ports_count":   len(cfg.Ports),
+	})
+}
+
+func (m *model) logScanEvent(evt scanner.Event) {
+	if m.log == nil {
+		return
+	}
+	fields := map[string]any{
+		"host": evt.Host,
+		"port": evt.Port,
+		"kind": string(evt.Kind),
+	}
+	switch evt.Kind {
+	case scanner.EventScanStart:
+		fields["ports_total"] = evt.PortsTotal
+		fields["hosts_total"] = evt.HostsTotal
+	case scanner.EventHostStart:
+		fields["ports_total"] = evt.PortsTotal
+	case scanner.EventPort:
+		fields["state"] = evt.State
+		fields["service"] = evt.Service
+		fields["ports_probed"] = evt.PortsProbed
+		fields["ports_total"] = evt.PortsTotal
+		if evt.Err != nil {
+			fields["error"] = evt.Err.Error()
+			m.log.Warn("port_error", fields)
+			return
+		}
+		if evt.TLS != nil && evt.TLS.Note != "" {
+			fields["tls_note"] = evt.TLS.Note
+			m.log.Warn("tls_note", fields)
+			return
+		}
+	case scanner.EventHostDone:
+		fields["hosts_completed"] = evt.HostsCompleted
+		fields["hosts_total"] = evt.HostsTotal
+	case scanner.EventScanDone:
+		fields["hosts_completed"] = evt.HostsCompleted
+		fields["hosts_total"] = evt.HostsTotal
+		fields["ports_probed"] = evt.PortsProbed
+		fields["ports_total"] = evt.PortsTotal
+		fields["elapsed_ms"] = int(evt.Elapsed.Milliseconds())
+	}
+	m.log.Info("scan_event", fields)
+}
+
+func (m *model) logScanDone(result scanner.ScanResult, err error) {
+	if m.log == nil {
+		return
+	}
+	if err != nil {
+		m.log.Error("scan_failed", map[string]any{"error": err.Error()})
+		return
+	}
+	m.log.Info("scan_done", map[string]any{
+		"status":       result.Meta.Status,
+		"duration_ms":  result.Meta.DurationMS,
+		"hosts_total":  result.Summary.HostsTotal,
+		"hosts_found":  result.Summary.HostsFound,
+		"ports_total":  result.Summary.PortsTotal,
+		"ports_probed": result.Summary.PortsProbed,
+		"open_ports":   result.Summary.OpenPorts,
+	})
+}
+
+func (m *model) logLine(event, line string) {
+	if m.log == nil {
+		return
+	}
+	m.log.Info(event, map[string]any{"message": line})
 }
 
 type scanRunner struct {
