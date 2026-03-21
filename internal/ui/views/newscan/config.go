@@ -1,6 +1,7 @@
 package newscan
 
 import (
+	"net"
 	"strconv"
 	"strings"
 
@@ -12,30 +13,43 @@ import (
 )
 
 type StartScanMsg struct {
-	Config scanner.ScanConfig
+	Config  scanner.ScanConfig
+	PreLogs []string
 }
 
-func (m NewScanModel) BuildScanConfig() (scanner.ScanConfig, []string, []string) {
+func (m NewScanModel) BuildScanConfig() (scanner.ScanConfig, []string, []string, []string) {
 	errs, warns := m.validate()
 	if len(errs) > 0 {
-		return scanner.ScanConfig{}, errs, warns
+		return scanner.ScanConfig{}, errs, warns, nil
 	}
 
+	var preLogs []string
 	parseResult, parseErrs := target.Parse(m.targetsInput.Value(), target.Options{
 		ExcludeNetworkBroadcast: true,
+		OnResolve: func(host string, ips []net.IP, err error) {
+			if err != nil {
+				return
+			}
+			for _, ip := range ips {
+				if ip.To4() == nil {
+					continue
+				}
+				preLogs = append(preLogs, "[ dns ] "+host+"  \u2192  "+ip.String())
+			}
+		},
 	})
 	if len(parseErrs) > 0 {
 		errs = append(errs, parseErrs...)
 	}
 	warns = append(warns, parseResult.Warnings...)
 	if len(errs) > 0 {
-		return scanner.ScanConfig{}, errs, warns
+		return scanner.ScanConfig{}, errs, warns, preLogs
 	}
 
 	ports, portErrs := m.parsePorts()
 	if len(portErrs) > 0 {
 		errs = append(errs, portErrs...)
-		return scanner.ScanConfig{}, errs, warns
+		return scanner.ScanConfig{}, errs, warns, preLogs
 	}
 
 	concurrency, _ := strconv.Atoi(strings.TrimSpace(m.concurrency.Value()))
@@ -50,16 +64,16 @@ func (m NewScanModel) BuildScanConfig() (scanner.ScanConfig, []string, []string)
 		BannerGrabbing: m.toggleBanner,
 		TLSAnalysis:    m.toggleTLS,
 		ReverseDNS:     m.toggleRDNS,
-	}, errs, warns
+	}, errs, warns, preLogs
 }
 
 func (m NewScanModel) StartScanCmd() (tea.Cmd, []string, []string) {
-	cfg, errs, warns := m.BuildScanConfig()
+	cfg, errs, warns, preLogs := m.BuildScanConfig()
 	if len(errs) > 0 {
 		return nil, errs, warns
 	}
 	return func() tea.Msg {
-		return StartScanMsg{Config: cfg}
+		return StartScanMsg{Config: cfg, PreLogs: preLogs}
 	}, errs, warns
 }
 

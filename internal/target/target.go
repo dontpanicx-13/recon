@@ -12,6 +12,7 @@ import (
 type Options struct {
 	ExcludeNetworkBroadcast bool
 	LookupIP                func(host string) ([]net.IP, error)
+	OnResolve               func(host string, ips []net.IP, err error)
 }
 
 type ParseResult struct {
@@ -105,6 +106,9 @@ func parseToken(token string, opts Options) ([]string, []string) {
 		lookup = net.LookupIP
 	}
 	ips, err := lookup(token)
+	if opts.OnResolve != nil {
+		opts.OnResolve(token, ips, err)
+	}
 	if err != nil {
 		return nil, []string{fmt.Sprintf("Domain %q did not resolve.", token)}
 	}
