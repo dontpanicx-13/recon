@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"net"
 	"sort"
 	"sync"
 	"time"
 
 	"recon/internal/banner"
+	"recon/internal/dns"
 )
 
 const (
@@ -65,7 +65,7 @@ type hostState struct {
 func NewScanner() *Scanner {
 	return &Scanner{
 		Now:           time.Now,
-		ReverseLookup: defaultReverseLookup,
+		ReverseLookup: dns.ReverseLookup,
 		BannerGrabber: banner.Grab,
 	}
 }
@@ -150,18 +150,7 @@ func (s *Scanner) reverseLookup(ctx context.Context, host string) (string, error
 	if s != nil && s.ReverseLookup != nil {
 		return s.ReverseLookup(ctx, host)
 	}
-	return defaultReverseLookup(ctx, host)
-}
-
-func defaultReverseLookup(ctx context.Context, host string) (string, error) {
-	if ctx.Err() != nil {
-		return "", ctx.Err()
-	}
-	names, err := net.LookupAddr(host)
-	if err != nil || len(names) == 0 {
-		return "", err
-	}
-	return names[0], nil
+	return dns.ReverseLookup(ctx, host)
 }
 
 func (s *Scanner) startWorkers(
