@@ -6,12 +6,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"recon/internal/logger"
 	"recon/internal/scanner"
 	"recon/internal/store"
 	"recon/internal/tlsinfo"
 	"recon/internal/ui/theme"
+	"recon/internal/ui/views/details"
 	"recon/internal/ui/views/history"
 	"recon/internal/ui/views/newscan"
 	"recon/internal/ui/views/running"
@@ -31,6 +33,8 @@ type model struct {
 	scanLabel  string
 	log        *logger.Logger
 	store      *store.Store
+
+	showPopup bool
 }
 
 type viewID int
@@ -107,6 +111,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Is it a key press?
 	case tea.KeyMsg:
+		if m.showPopup {
+			switch msg.String() {
+			case "esc":
+				m.showPopup = false
+				return m, nil
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			default:
+				return m, nil
+			}
+		}
 
 		// Cool, what was the actual key pressed?
 		switch msg.String() {
@@ -119,6 +134,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "alt+down":
 			m.active = viewHistory
 			return m, nil
+		case "enter":
+			if m.active == viewHistory {
+				m.showPopup = true
+				return m, nil
+			}
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
@@ -241,7 +261,68 @@ func (m model) View() string {
 		Background(lipgloss.Color(uiTheme.AppBg)).
 		Width(m.width).
 		Height(m.height)
+	if m.showPopup {
+		baseView := base.Render(content)
+		overlayW := int(float64(m.width) * 0.7)
+		overlayH := int(float64(m.height) * 0.7)
+		if overlayW < 30 {
+			overlayW = 30
+		}
+		if overlayH < 10 {
+			overlayH = 10
+		}
+		if overlayW > m.width-2 {
+			overlayW = m.width - 2
+		}
+		if overlayH > m.height-2 {
+			overlayH = m.height - 2
+		}
+		overlay := details.Render(overlayW, overlayH, uiTheme)
+		x := (m.width - overlayW) / 2
+		y := (m.height - overlayH) / 2
+		return overlayStrings(baseView, overlay, m.width, m.height, overlayW, overlayH, x, y)
+	}
 	return base.Render(content)
+}
+
+func overlayStrings(base, overlay string, width, height, overlayW, overlayH, x, y int) string {
+	baseLines := padLines(base, width, height)
+	overlayLines := padLines(overlay, overlayW, overlayH)
+	for i := 0; i < height; i++ {
+		if i < y || i >= y+overlayH {
+			continue
+		}
+		line := baseLines[i]
+		oline := overlayLines[i-y]
+		left := ansi.Cut(line, 0, x)
+		right := ansi.Cut(line, x+overlayW, width)
+		baseLines[i] = padANSI(left+padANSI(oline, overlayW)+right, width)
+	}
+	return strings.Join(baseLines, "\n")
+}
+
+func padLines(value string, width, height int) []string {
+	lines := strings.Split(value, "\n")
+	if len(lines) < height {
+		for i := len(lines); i < height; i++ {
+			lines = append(lines, "")
+		}
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for i := range lines {
+		lines[i] = padANSI(lines[i], width)
+	}
+	return lines
+}
+
+func padANSI(value string, width int) string {
+	diff := width - ansi.StringWidth(value)
+	if diff <= 0 {
+		return ansi.Truncate(value, width, "")
+	}
+	return value + strings.Repeat(" ", diff)
 }
 
 func (m *model) logScanStart(cfg scanner.ScanConfig) {
