@@ -9,10 +9,6 @@ import (
 )
 
 func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
-	if m.mode == modeDisabled {
-		return m, nil
-	}
-
 	switch msg := msg.(type) {
 	case blinkMsg:
 		m.blinkOn = !m.blinkOn
@@ -20,6 +16,10 @@ func (m NewScanModel) Update(msg tea.Msg) (NewScanModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	}
+
+	if m.mode == modeDisabled {
+		return m, nil
 	}
 
 	if m.mode == modePickingFile {

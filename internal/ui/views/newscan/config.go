@@ -15,6 +15,7 @@ import (
 type StartScanMsg struct {
 	Config  scanner.ScanConfig
 	PreLogs []string
+	Label   string
 }
 
 func (m NewScanModel) BuildScanConfig() (scanner.ScanConfig, []string, []string, []string) {
@@ -72,8 +73,9 @@ func (m NewScanModel) StartScanCmd() (tea.Cmd, []string, []string) {
 	if len(errs) > 0 {
 		return nil, errs, warns
 	}
+	label := strings.TrimSpace(m.label.Value())
 	return func() tea.Msg {
-		return StartScanMsg{Config: cfg, PreLogs: preLogs}
+		return StartScanMsg{Config: cfg, PreLogs: preLogs, Label: label}
 	}, errs, warns
 }
 

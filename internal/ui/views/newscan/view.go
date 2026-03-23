@@ -29,7 +29,6 @@ func (m NewScanModel) View(width, height int, active bool) string {
 	if active {
 		titleFg = m.theme.AccentFg
 		titleBg = m.theme.AccentBg
-		underline = strings.Repeat("─", titleWidth)
 	}
 	title := lipgloss.NewStyle().
 		Bold(true).

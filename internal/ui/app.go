@@ -9,8 +9,10 @@ import (
 
 	"recon/internal/logger"
 	"recon/internal/scanner"
+	"recon/internal/store"
 	"recon/internal/tlsinfo"
 	"recon/internal/ui/theme"
+	"recon/internal/ui/views/history"
 	"recon/internal/ui/views/newscan"
 	"recon/internal/ui/views/running"
 	"recon/internal/ui/views/statusbar"
@@ -21,11 +23,14 @@ type model struct {
 	height  int
 	newScan newscan.NewScanModel
 	running running.Model
+	history history.Model
 	status  statusbar.Model
 	active  viewID
 
 	scanRunner *scanRunner
+	scanLabel  string
 	log        *logger.Logger
+	store      *store.Store
 }
 
 type viewID int
@@ -38,12 +43,26 @@ const (
 
 func InitalModel(toolName, toolVersion string) model {
 	log, _ := logger.NewDefault()
+	historyModel := history.NewModel()
+	storeHandle, err := store.Default()
+	if err != nil {
+		historyModel.SetError(err)
+	} else {
+		manifest, loadErr := storeHandle.LoadManifest()
+		if loadErr != nil {
+			historyModel.SetError(loadErr)
+		} else {
+			historyModel.SetItems(manifest.Scans)
+		}
+	}
 	return model{
 		newScan: newscan.NewModel(),
 		running: running.NewModel(),
+		history: historyModel,
 		status:  statusbar.NewModel(toolName, toolVersion),
 		active:  viewNewScan,
 		log:     log,
+		store:   storeHandle,
 	}
 }
 
@@ -61,6 +80,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		runner := &scanRunner{events: make(chan scanner.Event, 256)}
 		ctx, cancel := context.WithCancel(context.Background())
 		m.scanRunner = runner
+		m.scanLabel = msg.Label
 		m.running.StartScan(cancel, msg.PreLogs)
 		m.active = viewLogs
 		m.newScan.SetDisabled(true)
@@ -82,6 +102,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scanDoneMsg:
 		m.running.HandleScanDone(msg.Result, msg.Err)
 		m.logScanDone(msg.Result, msg.Err)
+		m.persistScan(msg.Result, msg.Err)
 		m.newScan.SetDisabled(false)
 
 	// Is it a key press?
@@ -113,6 +134,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if _, ok := msg.(tea.KeyMsg); !ok || m.active == viewLogs {
 		m.running, _ = m.running.Update(msg)
+	}
+	if _, ok := msg.(tea.KeyMsg); !ok || m.active == viewHistory {
+		m.history, _ = m.history.Update(msg)
 	}
 
 	// Return the updated model to the Bubble Tea runtime for processing.
@@ -156,13 +180,22 @@ func (m model) View() string {
 	newScan := m.newScan.View(leftWidth-1, topHeight, m.active == viewNewScan)
 
 	panel := lipgloss.NewStyle().Padding(1, 2)
+	panelPadV := 2
+	panelChrome := 3 // title + underline + spacer
+	historyPanel := lipgloss.NewStyle().Padding(0, 2)
+	historyPadV := 0
+	historyChrome := 2 // title + underline (no spacer)
 
 	runningTitle := m.renderPanelTitle("RUNNING / LOGS", rightWidth-1, uiTheme, m.active == viewLogs)
 	runningInnerWidth := rightWidth - 5
 	if runningInnerWidth < 10 {
 		runningInnerWidth = 10
 	}
-	runningBody := m.running.View(runningInnerWidth, topHeight-2, uiTheme)
+	runningBodyHeight := topHeight - panelPadV - panelChrome
+	if runningBodyHeight < 1 {
+		runningBodyHeight = 1
+	}
+	runningBody := m.running.View(runningInnerWidth, runningBodyHeight, uiTheme)
 	running := panel.
 		Width(rightWidth - 1).
 		Height(topHeight).
@@ -175,11 +208,15 @@ func (m model) View() string {
 	}
 
 	historyTitle := m.renderPanelTitle("SCAN HISTORY", usableWidth, uiTheme, m.active == viewHistory)
-	historyBody := "(no scans yet)"
-	history := panel.
+	historyBodyHeight := historyHeight - historyPadV - historyChrome
+	if historyBodyHeight < 1 {
+		historyBodyHeight = 1
+	}
+	historyBody := m.history.View(usableWidth-4, historyBodyHeight, uiTheme, m.active == viewHistory)
+	history := historyPanel.
 		Width(usableWidth).
-		Height(historyHeight - 1).
-		Render(lipgloss.JoinVertical(lipgloss.Left, historyTitle, "", historyBody))
+		Height(historyHeight).
+		Render(lipgloss.JoinVertical(lipgloss.Left, historyTitle, historyBody))
 
 	vertLine := strings.Repeat("│\n", topHeight-1) + "│"
 	vert := lipgloss.NewStyle().
@@ -287,6 +324,35 @@ func (m *model) logScanDone(result scanner.ScanResult, err error) {
 	})
 }
 
+func (m *model) persistScan(result scanner.ScanResult, err error) {
+	if err != nil {
+		return
+	}
+	if m.store == nil {
+		return
+	}
+	if result.ScanID == "" {
+		return
+	}
+	if _, saveErr := m.store.SaveScan(result, m.scanLabel); saveErr != nil {
+		m.history.SetError(saveErr)
+		if m.log != nil {
+			m.log.Error("store_save_failed", map[string]any{"error": saveErr.Error()})
+		}
+		return
+	}
+	manifest, loadErr := m.store.LoadManifest()
+	if loadErr != nil {
+		m.history.SetError(loadErr)
+		if m.log != nil {
+			m.log.Error("store_manifest_failed", map[string]any{"error": loadErr.Error()})
+		}
+		return
+	}
+	m.history.SetError(nil)
+	m.history.SetItems(manifest.Scans)
+}
+
 func (m *model) logLine(event, line string) {
 	if m.log == nil {
 		return
@@ -343,7 +409,6 @@ func (m model) renderPanelTitle(text string, width int, uiTheme theme.Theme, act
 	if active {
 		titleFg = uiTheme.AccentFg
 		titleBg = uiTheme.AccentBg
-		underline = strings.Repeat("─", titleWidth)
 	}
 	title := lipgloss.NewStyle().
 		Bold(true).
