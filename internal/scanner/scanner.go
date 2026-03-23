@@ -64,9 +64,10 @@ type hostState struct {
 
 func NewScanner() *Scanner {
 	return &Scanner{
-		Now:           time.Now,
-		ReverseLookup: dns.ReverseLookup,
-		BannerGrabber: banner.Grab,
+		Now:            time.Now,
+		ReverseLookup:  dns.ReverseLookup,
+		BannerGrabber:  banner.Grab,
+		ServiceGuesser: GuessService,
 	}
 }
 
