@@ -12,14 +12,26 @@ import (
 func Generate(scan scanner.ScanResult) string {
 	var b bytes.Buffer
 
-	header := scan.ScanID
-	if len(scan.Config.Targets) > 0 {
-		header = strings.Join(scan.Config.Targets, ", ")
-	}
+	header := formatTargets(scan.Config)
 	fmt.Fprintf(&b, "# Scan Detail\n\n")
 	fmt.Fprintf(&b, "**Targets:** %s\n\n", header)
 	fmt.Fprintf(&b, "**Date:** %s\n\n", scan.Meta.Date)
 	fmt.Fprintf(&b, "**Status:** %s\n\n", scan.Meta.Status)
+	fmt.Fprintf(&b, "**Duration:** %d ms\n\n", scan.Meta.DurationMS)
+
+	fmt.Fprintf(&b, "## Config\n\n")
+	if scan.Config.Profile != "" {
+		fmt.Fprintf(&b, "- Profile: %s\n", scan.Config.Profile)
+	}
+	fmt.Fprintf(&b, "- Concurrency: %d\n", scan.Config.Concurrency)
+	fmt.Fprintf(&b, "- Timeout: %d ms\n", scan.Config.TimeoutMS)
+	fmt.Fprintf(&b, "- Ports: %s\n", formatPorts(scan.Config.Ports))
+	fmt.Fprintf(&b, "\n")
+
+	fmt.Fprintf(&b, "## Options\n\n")
+	fmt.Fprintf(&b, "- Banner grabbing: %s\n", yesNo(scan.Config.BannerGrabbing))
+	fmt.Fprintf(&b, "- TLS analysis: %s\n", yesNo(scan.Config.TLSAnalysis))
+	fmt.Fprintf(&b, "- Reverse DNS: %s\n\n", yesNo(scan.Config.ReverseDNS))
 
 	fmt.Fprintf(&b, "## Summary\n\n")
 	fmt.Fprintf(&b, "- Hosts total: %d\n", scan.Summary.HostsTotal)
@@ -75,6 +87,34 @@ func Generate(scan scanner.ScanResult) string {
 	}
 
 	return b.String()
+}
+
+func formatTargets(cfg scanner.ScanConfig) string {
+	if len(cfg.Targets) == 0 {
+		return "—"
+	}
+	return strings.Join(cfg.Targets, ", ")
+}
+
+func formatPorts(ports []int) string {
+	if len(ports) == 0 {
+		return "—"
+	}
+	if len(ports) <= 20 {
+		var out []string
+		for _, p := range ports {
+			out = append(out, fmt.Sprintf("%d", p))
+		}
+		return strings.Join(out, ", ")
+	}
+	return fmt.Sprintf("%d ports", len(ports))
+}
+
+func yesNo(v bool) string {
+	if v {
+		return "yes"
+	}
+	return "no"
 }
 
 func sanitizeInline(value string) string {

@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"recon/internal/logger"
+	"recon/internal/report"
 	"recon/internal/scanner"
 	"recon/internal/store"
 	"recon/internal/tlsinfo"
@@ -28,13 +31,15 @@ type model struct {
 	history history.Model
 	status  statusbar.Model
 	active  viewID
+	details details.Model
 
 	scanRunner *scanRunner
 	scanLabel  string
 	log        *logger.Logger
 	store      *store.Store
 
-	showPopup bool
+	showPopup     bool
+	confirmDelete bool
 }
 
 type viewID int
@@ -67,11 +72,11 @@ func InitalModel(toolName, toolVersion string) model {
 		active:  viewNewScan,
 		log:     log,
 		store:   storeHandle,
+		details: details.NewModel(),
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	// Just return `nil`, which means "no I/O right now, please."
 	return tea.Batch(m.status.Init(), newscan.BlinkCmd())
 }
 
@@ -112,13 +117,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Is it a key press?
 	case tea.KeyMsg:
 		if m.showPopup {
-			switch msg.String() {
-			case "esc":
-				m.showPopup = false
-				return m, nil
-			case "ctrl+c", "q":
+			if msg.String() == "ctrl+c" || msg.String() == "q" {
 				return m, tea.Quit
-			default:
+			}
+			var action details.Action
+			m.details, action = m.details.Update(msg)
+			switch action {
+			case details.ActionClose:
+				m.showPopup = false
+			case details.ActionExportJSON:
+				m.exportPopupJSON()
+			case details.ActionExportMarkdown:
+				m.exportPopupMarkdown()
+			}
+			return m, nil
+		}
+
+		if m.confirmDelete {
+			switch msg.String() {
+			case "y":
+				m.confirmDeleteScan()
+				return m, nil
+			case "n", "esc":
+				m.cancelDeleteConfirm()
 				return m, nil
 			}
 		}
@@ -134,9 +155,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "alt+down":
 			m.active = viewHistory
 			return m, nil
+		case "d":
+			if m.active == viewHistory {
+				m.startDeleteConfirm()
+				return m, nil
+			}
 		case "enter":
 			if m.active == viewHistory {
 				m.showPopup = true
+				m.details = details.NewModel()
+				if item, ok := m.history.Selected(); ok && m.store != nil {
+					if scan, err := m.store.LoadScan(item.ScanID); err == nil {
+						m.details.SetScan(scan)
+					}
+				}
 				return m, nil
 			}
 
@@ -277,12 +309,92 @@ func (m model) View() string {
 		if overlayH > m.height-2 {
 			overlayH = m.height - 2
 		}
-		overlay := details.Render(overlayW, overlayH, uiTheme)
+		overlay := details.Render(overlayW, overlayH, uiTheme, m.details)
 		x := (m.width - overlayW) / 2
 		y := (m.height - overlayH) / 2
 		return overlayStrings(baseView, overlay, m.width, m.height, overlayW, overlayH, x, y)
 	}
 	return base.Render(content)
+}
+
+func (m *model) exportPopupJSON() {
+	scan := m.details.Scan
+	if scan.ScanID == "" {
+		return
+	}
+	path := scan.ScanID + ".json"
+	data, err := json.MarshalIndent(scan, "", "  ")
+	if err != nil {
+		m.logError(err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		m.logError(err)
+		m.details.SetMessage("Export failed: " + path)
+		return
+	}
+	m.details.SetMessage("Exported JSON to " + path)
+}
+
+func (m *model) exportPopupMarkdown() {
+	scan := m.details.Scan
+	if scan.ScanID == "" {
+		return
+	}
+	path := scan.ScanID + ".md"
+	md := report.Generate(scan)
+	if err := os.WriteFile(path, []byte(md), 0o644); err != nil {
+		m.logError(err)
+		m.details.SetMessage("Export failed: " + path)
+		return
+	}
+	m.details.SetMessage("Exported Markdown to " + path)
+}
+
+func (m *model) logError(err error) {
+	if m.log == nil || err == nil {
+		return
+	}
+	m.log.Error("ui_error", map[string]any{"error": err.Error()})
+}
+
+func (m *model) startDeleteConfirm() {
+	item, ok := m.history.Selected()
+	if !ok {
+		return
+	}
+	m.confirmDelete = true
+	label := item.ScanID
+	if item.Label != "" {
+		label = item.Label
+	}
+	m.history.SetPrompt("Delete scan \"" + label + "\"? (y/n)")
+}
+
+func (m *model) cancelDeleteConfirm() {
+	m.confirmDelete = false
+	m.history.SetPrompt("")
+}
+
+func (m *model) confirmDeleteScan() {
+	item, ok := m.history.Selected()
+	if !ok || m.store == nil {
+		m.cancelDeleteConfirm()
+		return
+	}
+	if err := m.store.DeleteScan(item.ScanID); err != nil {
+		m.history.SetError(err)
+		m.cancelDeleteConfirm()
+		return
+	}
+	manifest, err := m.store.LoadManifest()
+	if err != nil {
+		m.history.SetError(err)
+		m.cancelDeleteConfirm()
+		return
+	}
+	m.history.SetItems(manifest.Scans)
+	m.cancelDeleteConfirm()
 }
 
 func overlayStrings(base, overlay string, width, height, overlayW, overlayH, x, y int) string {

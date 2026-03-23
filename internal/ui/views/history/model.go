@@ -9,6 +9,7 @@ type Model struct {
 	lastHeight int
 	lastWidth  int
 	errMessage string
+	prompt     string
 }
 
 func NewModel() Model {
@@ -29,6 +30,14 @@ func (m *Model) SetError(err error) {
 		return
 	}
 	m.errMessage = err.Error()
+}
+
+func (m *Model) SetPrompt(value string) {
+	m.prompt = value
+}
+
+func (m Model) Prompt() string {
+	return m.prompt
 }
 
 func (m Model) Error() string {

@@ -151,6 +151,53 @@ func (s *Store) LoadScan(scanID string) (scanner.ScanResult, error) {
 	return result, nil
 }
 
+func (s *Store) DeleteScan(scanID string) error {
+	if s == nil {
+		return errors.New("store is nil")
+	}
+	if scanID == "" {
+		return errors.New("scan id is empty")
+	}
+	if err := s.Ensure(); err != nil {
+		return err
+	}
+
+	manifest, err := s.LoadManifest()
+	if err != nil {
+		return err
+	}
+
+	var (
+		found   bool
+		fileRel string
+	)
+	next := make([]ManifestItem, 0, len(manifest.Scans))
+	for _, item := range manifest.Scans {
+		if item.ScanID == scanID {
+			found = true
+			fileRel = item.File
+			continue
+		}
+		next = append(next, item)
+	}
+	if !found {
+		return fmt.Errorf("scan not found: %s", scanID)
+	}
+	manifest.Scans = next
+	if err := writeJSON(s.manifestPath(), manifest); err != nil {
+		return err
+	}
+
+	if fileRel == "" {
+		fileRel = filepath.Join("scans", scanID+".json")
+	}
+	fileAbs := filepath.Join(s.BaseDir, fileRel)
+	if err := os.Remove(fileAbs); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func (s *Store) appendManifest(item ManifestItem) error {
 	manifest, err := s.LoadManifest()
 	if err != nil {

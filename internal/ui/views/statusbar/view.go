@@ -36,7 +36,7 @@ func (m Model) View(width int, uiTheme theme.Theme) string {
 	nowSegment := nowStyle.Render(" Now " + time.Now().Format("15:04:05") + " ")
 	right := uptimeSegment + nowSegment
 
-	controlsTextLeft := " ↑↓ Move  ←→ Switch  ⏎ Action  "
+	controlsTextLeft := " ↑↓ Move  ←→ Switch  ⏎ Action  D Delete  "
 	controlsTextRight := "+↑/→/↓ Views "
 	altBadge := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(uiTheme.StatusBg)).

@@ -40,6 +40,8 @@ func (m *Model) View(width, height int, uiTheme theme.Theme, active bool) string
 	selectedRowStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(uiTheme.AppBg)).
 		Background(lipgloss.Color(uiTheme.ControlsFg))
+	promptStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(uiTheme.StatusFg))
 
 	cols := calcColumns(width)
 	header := renderRow(cols, historyRow{
@@ -53,8 +55,13 @@ func (m *Model) View(width, height int, uiTheme theme.Theme, active bool) string
 		Status:   "Status",
 	}, headerStyle, false)
 
-	lines := []string{header}
+	lines := []string{}
 	visible := max(1, height-1)
+	if m.prompt != "" {
+		lines = append(lines, promptStyle.Width(width).Render(m.prompt))
+		visible = max(1, height-2)
+	}
+	lines = append(lines, header)
 	start := m.top
 	end := min(len(m.items), start+visible)
 	for i := start; i < end; i++ {
