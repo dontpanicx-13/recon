@@ -1,0 +1,53 @@
+site_name: recon
+site_description: Terminal-based network scanner in Go
+site_author: dontpanicx-13
+
+nav:
+  - Overview: index.md
+  - Quickstart: quickstart.md
+  - Configuration: configuration.md
+  - Controls: controls.md
+  - Architecture: architecture.md
+  - Data & Storage: data.md
+  - Theming: theming.md
+  - Security & Ethics: security.md
+  - Releases: releases.md
+
+theme:
+  name: material
+  language: en
+  logo: null
+  favicon: assets/favicon.svg
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+
+repo_name: dontpanicx-13/recon
+repo_url: https://github.com/dontpanicx-13/recon
+edit_uri: ""
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dontpanicx-13/recon
+  generator: false
+
+extra_css:
+  - styles/extra.css
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
