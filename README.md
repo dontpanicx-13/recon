@@ -2,7 +2,7 @@
 
 Terminal-based network scanner in Go. Fast TCP Connect scans with optional banner grabbing, TLS inspection, and reverse DNS in a focused TUI.
 
-Docs: 
+Docs: https://recon.dontpanicx.workers.dev
 
 Repository: https://github.com/dontpanicx-13/recon
 
