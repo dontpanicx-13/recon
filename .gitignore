@@ -1,1 +1,15 @@
 SPEC.md
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# MkDocs
+site/
+
+# Go
+dist/
+*.exe
+
+# OS
+.DS_Store
